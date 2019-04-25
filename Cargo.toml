@@ -1,0 +1,12 @@
+[package]
+name = "libnixstore-sys"
+version = "0.1.0"
+authors = ["Andreas Rammhold <andreas@rammhold.de>"]
+edition = "2018"
+
+links = "nixstore-c"
+
+[build-dependencies]
+bindgen = "0.42"
+
+[dependencies]
