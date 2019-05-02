@@ -1,13 +1,15 @@
 use std::ffi::{CString, CStr};
 
+#[derive(Debug)]
 pub enum Error {
 //    StringConversionFailed,
-    NullPtr
+    FfiNullPtr(std::ffi::NulError),
+    NullPtr,
 }
 
 impl From<std::ffi::NulError> for Error {
     fn from(other: std::ffi::NulError) -> Error {
-        return Error::NullPtr;
+        return Error::FfiNullPtr(other);
     }
 }
 
@@ -17,16 +19,17 @@ mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
+#[derive(Debug)]
 pub struct PathInfo {
-    path: String,
-    deriver: String,
-    nar_hash: String,
-    references: String,
-    registration_time: i64,
-    nar_size: u64,
-    ultimate: bool,
-    signatures: String,
-    ca: String,
+    pub path: String,
+    pub deriver: String,
+    pub nar_hash: String,
+    pub references: String,
+    pub registration_time: i64,
+    pub nar_size: u64,
+    pub ultimate: bool,
+    pub signatures: String,
+    pub ca: String,
 }
 
 impl PathInfo {
@@ -45,67 +48,142 @@ impl PathInfo {
     }
 }
 
-pub fn init() {
-    unsafe {
-        ffi::libnixstorec_init();
+#[derive(Debug)]
+pub struct Instance {
+    instp: *mut ffi::nixstorec_instance,
+}
+
+unsafe impl Send for Instance {}
+impl Drop for Instance {
+    fn drop(&mut self) {
+        unsafe { ffi::nixstorec_free_instance(self.instp) };
     }
 }
 
-pub fn is_valid_path<T: AsRef<str>>(path: T) -> Result<bool> {
-    let path = std::ffi::CString::new(path.as_ref())?;
+impl Instance {
+    pub fn new() -> Result<Instance> {
+        let instp = unsafe {
+            ffi::nixstorec_new_instance()
+        };
 
-    unsafe {
+        if instp == 0 as _ {
+            return Err(Error::NullPtr);
+        }
+
+        Ok(Self{
+            instp
+        })
+    }
+
+    pub fn is_valid_path<T: AsRef<str>>(&mut self, path: T) -> Result<bool> {
+        let path = std::ffi::CString::new(path.as_ref())?;
+
         let c_path = path.as_ptr();
-        let ret : bool = ffi::libnixstorec_is_valid_path(c_path) != 0;
-        return Ok(ret);
+
+        unsafe {
+            let ret : bool = ffi::nixstorec_is_valid_path(self.instp, c_path) != 0;
+            return Ok(ret);
+        }
+    }
+
+    pub fn query_path_info<T: AsRef<str>>(&mut self, path: T) -> Result<Option<PathInfo>> {
+        let path : CString = std::ffi::CString::new(path.as_ref())?;
+        let c_path = path.as_ptr();
+
+        let c_pathinfo_ptr = unsafe {
+            ffi::nixstorec_query_path_info(self.instp, c_path)
+        };
+
+        if c_pathinfo_ptr == 0 as _ {
+            return Ok(None);
+        }
+
+        let pathinfo = {
+            let c_pathinfo = unsafe { *c_pathinfo_ptr };
+            PathInfo::from_cpathinfo(&c_pathinfo)
+        };
+
+        unsafe { ffi::nixstorec_free_path_info(c_pathinfo_ptr); }
+
+        return Ok(Some(pathinfo));
+    }
+
+    pub fn query_path_from_hash_part<T: AsRef<str>>(&mut self, hash_part: T) -> Result<Option<String>> {
+
+        let hash_path_c = CString::new(hash_part.as_ref())?;
+
+        let path_c = unsafe { ffi::nixstorec_query_path_from_hash_part(self.instp, hash_path_c.as_ptr()) };
+
+        if path_c == 0 as _ {
+            return Err(Error::NullPtr);
+        }
+
+        let path = unsafe {
+            CStr::from_ptr(path_c).to_string_lossy().to_string()
+        };
+
+        unsafe { ffi::nixstorec_free(path_c as _); }
+
+        if path.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(path))
+        }
+    }
+
+    pub fn query_path_from_nar_hash<T: AsRef<str>>(&mut self, nar_hash: T) -> Result<Option<String>> {
+
+        let nar_hash_c = CString::new(nar_hash.as_ref())?;
+
+        let path_c = unsafe { ffi::nixstorec_query_path_from_nar_hash(self.instp, nar_hash_c.as_ptr()) };
+
+        if path_c == 0 as _ {
+            return Err(Error::NullPtr);
+        }
+
+        let path = unsafe {
+            CStr::from_ptr(path_c).to_string_lossy().to_string()
+        };
+
+        let ptr = path_c as _;
+
+        unsafe {
+            ffi::nixstorec_free(ptr);
+        }
+
+        if path.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(path))
+        }
     }
 }
 
-pub fn query_path_info<T: AsRef<str>>(path: T) -> Result<PathInfo> {
-    let path : CString = std::ffi::CString::new(path.as_ref())?;
-    let c_path = path.as_ptr();
 
-    let c_pathinfo_ptr = unsafe {
-        ffi::libnixstorec_query_path_info(c_path)
-    };
-
-    if c_pathinfo_ptr == 0 as _ {
-        return Err(Error::NullPtr);
-    }
-
-    let pathinfo = {
-        let c_pathinfo = unsafe { *c_pathinfo_ptr };
-        PathInfo::from_cpathinfo(&c_pathinfo)
-    };
-
-    unsafe { ffi::libnixstorec_free_path_info(c_pathinfo_ptr); }
-
-    return Ok(pathinfo);
-}
-
-pub fn query_path_from_hash_part<T: AsRef<str>>(hash_part: T) -> Result<String> {
-
-    let hash_path_c = CString::new(hash_part.as_ref())?;
-
-    let path_c = unsafe { ffi::libnixstorec_query_path_from_hash_part(hash_path_c.as_ptr()) };
-
-    if path_c == 0 as _ {
-        return Err(Error::NullPtr);
-    }
-
-    let path = unsafe {
-        CStr::from_ptr(path_c).to_string_lossy().to_string()
-    };
-
-    unsafe { ffi::libnixstorec_free(path_c as _); }
-
-    Ok(path)
-}
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+//     fn query_path_from_nar_hash() {
+//         let v = super::query_path_from_nar_hash("fooooo");
+//         println!("{:?}", v);
+//         assert!(v.is_ok());
+//     }
+//
+//     #[test]
+//     fn query_path_from_hash_part() {
+//         let v = super::query_path_from_hash_part("foooooooooo");
+//         println!("{:?}", v);
+//         assert!(v.is_ok());
+//     }
+
+    #[test]
+    fn query_path_info() {
+        for i in 0..100 {
+            let mut instance = super::Instance::new().unwrap();
+            let v = instance.query_path_info("testtesttest");
+            println!("{:?}", v);
+            assert!(v.unwrap().is_none())
+        }
     }
 }

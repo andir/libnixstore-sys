@@ -6,6 +6,15 @@ edition = "2018"
 
 links = "nixstore-c"
 
+
+[lib]
+name = "libnixstore_sys"
+path = "src/lib.rs"
+
+[[bin]]
+name = "query_path_info"
+path = "src/bin.rs"
+
 [build-dependencies]
 bindgen = "0.42"
 
