@@ -131,11 +131,11 @@ impl Instance {
         }
     }
 
-    pub fn query_path_from_nar_hash<T: AsRef<str>>(&mut self, nar_hash: T) -> Result<Option<String>> {
+    pub fn query_path_from_file_hash<T: AsRef<str>>(&mut self, file_hash: T) -> Result<Option<String>> {
 
-        let nar_hash_c = CString::new(nar_hash.as_ref())?;
+        let file_hash_c = CString::new(file_hash.as_ref())?;
 
-        let path_c = unsafe { ffi::nixstorec_query_path_from_nar_hash(self.instp, nar_hash_c.as_ptr()) };
+        let path_c = unsafe { ffi::nixstorec_query_path_from_file_hash(self.instp, file_hash_c.as_ptr()) };
 
         if path_c == 0 as _ {
             return Err(Error::NullPtr);

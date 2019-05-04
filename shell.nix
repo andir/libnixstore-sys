@@ -3,12 +3,12 @@ let
   libnixstore-c = callPackage (fetchFromGitHub {
     owner = "andir";
     repo = "libnixstore-c";
-    rev = "54f9c94f239cc4cf436c942ae708e4b500934cd7";
-    sha256 = "0v0zqq1cv7zd5h3dab5pcfr1vbr7qz4qaffxwxjni3vs4va42k0z";
+    rev = "2ce29c26a4bca55bb5b83fa97f045659675bcfa7";
+    sha256 = "1jk798ck2ppkkw9i1p07rqk0xsi9bv89a62idwmzgxw6lniipby0";
   }) {};
 in mkShell {
   buildInputs = [ libnixstore-c llvmPackages.clang-unwrapped.lib ];
-  nativeBuildInputs = [ gdb ];
+  nativeBuildInputs = [ gdb pkgconfig ];
 
   shellHook = ''
     export LIBCLANG_PATH=${llvmPackages.clang-unwrapped.lib}/lib

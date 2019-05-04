@@ -17,5 +17,6 @@ path = "src/bin.rs"
 
 [build-dependencies]
 bindgen = "0.42"
+pkg-config = "0.3"
 
 [dependencies]
