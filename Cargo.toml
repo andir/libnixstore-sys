@@ -2,9 +2,11 @@
 name = "libnixstore-sys"
 version = "0.1.0"
 authors = ["Andreas Rammhold <andreas@rammhold.de>"]
+description = "Bindings to libnixstore-c"
 edition = "2018"
-
+license = "MIT"
 links = "nixstore-c"
+homepage = "https://github.com/andir/libnixstore-sys"
 
 
 [lib]
